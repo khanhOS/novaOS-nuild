@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-status}" in
+  status)
+    echo 'ClamAV:'
+    command -v clamscan >/dev/null 2>&1 && clamscan --version || true
+    if [[ -f /var/lib/clamav/main.cvd || -f /var/lib/clamav/main.cld ]]; then
+      echo 'Database: present'
+    else
+      echo 'Database: not present yet (use novaos-antivirus update)'
+    fi
+    ;;
+  scan)
+    [[ $# -ge 2 ]] || { echo 'Usage: novaos-antivirus scan PATH' >&2; exit 2; }
+    if clamscan --recursive --infected --log=/tmp/novaos-clamscan.log -- "$2"; then
+      code=0
+    else
+      code=$?
+    fi
+    case "$code" in 0) echo 'No infected file reported.';; 1) echo 'ClamAV reported at least one infected file. Review /tmp/novaos-clamscan.log.';; *) echo "ClamAV returned $code.";; esac
+    exit "$code"
+    ;;
+  update)
+    if [[ "$(id -u)" -eq 0 ]]; then
+      /usr/local/sbin/novaos-maint antivirus-update
+    else
+      sudo -n /usr/local/sbin/novaos-maint antivirus-update
+    fi
+    ;;
+  *) echo 'Usage: novaos-antivirus {status|scan PATH|update}' >&2; exit 2;;
+esac

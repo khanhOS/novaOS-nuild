@@ -1,0 +1,13 @@
+[Unit]
+Description=NovaOS account metadata database synchronization
+Before=lightdm.service display-manager.service
+Wants=local-fs.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/novaos-account-db
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

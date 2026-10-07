@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+getent group autologin >/dev/null 2>&1 || groupadd -r autologin
+id nova >/dev/null 2>&1 || useradd -m -s /bin/bash -G wheel nova
+for g in autologin wheel audio video input storage users network lp scanner; do
+  if getent group "$g" >/dev/null 2>&1; then usermod -aG "$g" nova || true; fi
+done
+passwd -d nova >/dev/null 2>&1 || true
+install -d -o root -g root -m 0755 /var/lib/novaos

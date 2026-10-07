@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+import os, shlex, subprocess, sqlite3, shutil, threading
+from pathlib import Path
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, GLib
+
+DB='/var/lib/novaos/accounts.db'
+
+
+def spawn(argv):
+    try:
+        return subprocess.Popen(argv)
+    except Exception as e:
+        return e
+
+
+def capture(argv, timeout=20):
+    try:
+        return subprocess.run(argv, text=True, capture_output=True, check=False, timeout=timeout).stdout.strip()
+    except FileNotFoundError:
+        return 'Unavailable: %s is not installed.' % argv[0]
+    except Exception as e:
+        return 'Unavailable: %s' % e
+
+
+def term(command):
+    # --hold keeps the window open so the user can read the result.
+    return spawn(['xfce4-terminal', '--hold', '--command', command])
+
+
+def maintain(*args, done=None):
+    argv = ['sudo', '-n', '/usr/local/sbin/novaos-maint', *args]
+    def work():
+        try:
+            r = subprocess.run(argv, text=True, capture_output=True, timeout=180)
+            ok = r.returncode == 0
+            msg = (r.stdout + r.stderr).strip() or ('OK' if ok else 'exit code %d' % r.returncode)
+        except Exception as e:
+            ok, msg = False, str(e)
+        if done:
+            GLib.idle_add(done, ok, msg)
+    threading.Thread(target=work, daemon=True).start()
+
+
+def set_text(view, text):
+    buf=view.get_buffer(); buf.set_text(text)
+
+
+def db_users():
+    out=[]
+    try:
+        con=sqlite3.connect('file:%s?mode=ro' % DB, uri=True, timeout=2); con.row_factory=sqlite3.Row
+        rows=con.execute('SELECT username,uid,home,autologin FROM accounts ORDER BY uid').fetchall()
+        con.close()
+        out=[dict(r) for r in rows]
+    except Exception:
+        pass
+    return out
+
+class Center(Gtk.Window):
+    def __init__(self):
+        super().__init__(title='NovaOS Center V20')
+        self.set_default_size(980, 680)
+        self.set_border_width(12)
+        outer=Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.add(outer)
+        root=Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        outer.pack_start(root, True, True, 0)
+        self.status=Gtk.Label(label=''); self.status.set_xalign(0); self.status.set_line_wrap(True); self.status.set_selectable(True)
+        outer.pack_start(self.status, False, False, 0)
+        self._wine=None; self.built=set(); self.titles={}
+        left=Gtk.ListBox(); left.set_selection_mode(Gtk.SelectionMode.SINGLE); left.set_size_request(190,-1)
+        root.pack_start(left, False, False, 0)
+        self.stack=Gtk.Stack(); self.stack.set_transition_type(Gtk.StackTransitionType.NONE)
+        root.pack_start(self.stack, True, True, 0)
+        pages=[('Home','Home'),('Performance','Performance'),('Appearance','Appearance'),('Network','Network'),('Windows Games','Games'),('Security','Security'),('Accounts','Accounts'),('Hardware','Hardware'),('Startup','Startup'),('Storage','Storage'),('Maintenance','Maintenance'),('About','About')]
+        for title, key in pages:
+            row=Gtk.ListBoxRow(); row.add(Gtk.Label(label=title, xalign=0.05)); row.set_name(key); left.add(row)
+            self.titles[key]=title
+        left.connect('row-selected', self.select_page)
+        left.select_row(left.get_row_at_index(0))
+        GLib.timeout_add_seconds(3, self.refresh_home)
+
+    def select_page(self, box, row):
+        if not row: return
+        key=row.get_name()
+        if key not in self.built:
+            # Pages are built on first visit so startup stays fast on old hardware.
+            widget=self.make_page(key,self.titles[key]); self.stack.add_titled(widget,key,self.titles[key]); widget.show_all(); self.built.add(key)
+        self.stack.set_visible_child_name(key)
+        self.status.set_text('')
+        if key=='Home': self.refresh_home(force=True)
+
+    def maint(self, *args):
+        self.status.set_text('Đang chạy: novaos-maint ' + ' '.join(args) + ' …')
+        maintain(*args, done=lambda ok, msg: (self.status.set_text(('OK: ' if ok else 'Lỗi: ') + msg[:600]), False)[1])
+
+    def make_text_page(self, title, content=''):
+        box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        lab=Gtk.Label(); lab.set_markup(f'<big><b>{title}</b></big>'); lab.set_xalign(0); box.pack_start(lab,False,False,0)
+        view=Gtk.TextView(); view.set_editable(False); view.set_monospace(True); view.set_vexpand(True); view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR); set_text(view,content); box.pack_start(view,True,True,0)
+        return box,view
+
+    def make_page(self,key,title):
+        if key=='Home':
+            box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+            l=Gtk.Label(); l.set_markup('<big><b>NovaOS V20 “Sao Mai”</b></big>'); l.set_xalign(0); box.pack_start(l,False,False,0)
+            self.home=Gtk.Label(); self.home.set_xalign(0); self.home.set_selectable(True); box.pack_start(self.home,False,False,0)
+            btn=Gtk.Button(label='Mở Game Hub'); btn.connect('clicked',lambda *_: spawn(['novaos-gamehub'])); box.pack_start(btn,False,False,0)
+            btn2=Gtk.Button(label='Chẩn đoán máy'); btn2.connect('clicked',lambda *_: term('/usr/local/sbin/novaos-diagnostics')); box.pack_start(btn2,False,False,0)
+            return box
+        if key=='Performance':
+            box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8); titlel=Gtk.Label(); titlel.set_markup('<big><b>Performance</b></big>'); titlel.set_xalign(0); box.pack_start(titlel,False,False,0)
+            for label,args in [('Low RAM',['profile','low']),('Balanced',['profile','balanced']),('zram ON',['zram','on']),('zram OFF',['zram','off']),('earlyoom ON',['earlyoom','on']),('earlyoom OFF',['earlyoom','off']),('Auto Boost ON',['auto-boost','on']),('Auto Boost OFF',['auto-boost','off'])]:
+                b=Gtk.Button(label=label); b.connect('clicked',lambda _,a=args: self.maint(*a)); box.pack_start(b,False,False,0)
+            return box
+        if key=='Appearance':
+            box,view=self.make_text_page('Appearance','Instant mode is the V20 default.\n\nCompositor: OFF\nPicom: OFF\nGTK animations: OFF\nMenu delays: 0 ms\nGlass: manual only')
+            b=Gtk.Button(label='Glass OFF'); b.connect('clicked',lambda *_: spawn(['novaos-glass','off'])); box.pack_start(b,False,False,0)
+            b=Gtk.Button(label='Glass ON (manual, light)'); b.connect('clicked',lambda *_: spawn(['novaos-glass','on'])); box.pack_start(b,False,False,0)
+            return box
+        if key=='Network':
+            box,view=self.make_text_page('Network',capture(['nmcli','general','status']))
+            b=Gtk.Button(label='Mở Network Settings'); b.connect('clicked',lambda *_: spawn(['nm-connection-editor'])); box.pack_start(b,False,False,0)
+            return box
+        if key=='Games':
+            box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8); l=Gtk.Label(); l.set_markup('<big><b>Windows Games</b></big>'); l.set_xalign(0); box.pack_start(l,False,False,0)
+            info=Gtk.Label(label='WineD3D mặc định. GameMode dùng tối ưu tạm thời. DXVK/Vulkan không bị ép trên Intel HD cũ.'); info.set_xalign(0); info.set_line_wrap(True); box.pack_start(info,False,False,0)
+            for text,cmd in [('Game Hub',['novaos-gamehub']),('Wine Config',['winecfg']),('Winetricks',['winetricks','--gui']),('Game Diagnostics',None)]:
+                b=Gtk.Button(label=text); b.connect('clicked',lambda _,c=cmd: spawn(c) if c else term('/usr/local/sbin/novaos-diagnostics')); box.pack_start(b,False,False,0)
+            return box
+        if key=='Security':
+            box,view=self.make_text_page('Security',capture(['/usr/local/sbin/novaos-antivirus','status']))
+            b=Gtk.Button(label='Scan Home (thư mục của bạn)'); b.connect('clicked',lambda *_: term('/usr/local/sbin/novaos-antivirus scan ' + shlex.quote(str(Path.home())))); box.pack_start(b,False,False,0)
+            b=Gtk.Button(label='Update virus database'); b.connect('clicked',lambda *_: term('sudo -n /usr/local/sbin/novaos-maint antivirus-update')); box.pack_start(b,False,False,0)
+            return box
+        if key=='Accounts':
+            box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8); l=Gtk.Label(); l.set_markup('<big><b>Accounts / Auto Login</b></big>'); l.set_xalign(0); box.pack_start(l,False,False,0)
+            combo=Gtk.ComboBoxText(); users=db_users();
+            for u in users: combo.append_text(u['username'] + (' [Auto Login]' if u['autologin'] else ''))
+            if users: combo.set_active(0)
+            box.pack_start(combo,False,False,0)
+            on=Gtk.Button(label='Bật Auto Login cho tài khoản đã chọn'); off=Gtk.Button(label='Tắt Auto Login')
+            def selected_user():
+                i=combo.get_active(); return users[i]['username'] if 0<=i<len(users) else 'nova'
+            on.connect('clicked',lambda *_: self.maint('autologin','on',selected_user()))
+            off.connect('clicked',lambda *_: self.maint('autologin','off'))
+            box.pack_start(on,False,False,0); box.pack_start(off,False,False,0)
+            note=Gtk.Label(label='Mật khẩu không được lưu trong accounts.db. Auto Login chỉ thay đổi LightDM.'); note.set_xalign(0); note.set_line_wrap(True); box.pack_start(note,False,False,0)
+            return box
+        if key=='Hardware':
+            box,view=self.make_text_page('Hardware','')
+            def load(*_):
+                set_text(view,'Đang đọc phần cứng …')
+                threading.Thread(target=lambda: GLib.idle_add(set_text,view,capture(['inxi','-Fxxxz'],timeout=60) or 'Unavailable'),daemon=True).start()
+            load()
+            b=Gtk.Button(label='Làm mới'); b.connect('clicked',load); box.pack_start(b,False,False,0)
+            return box
+        if key=='Startup':
+            box,view=self.make_text_page('Startup','No Glass daemon.\nNo visual watcher.\nSession setup is the only NovaOS performance autostart helper.')
+            return box
+        if key=='Storage':
+            box,view=self.make_text_page('Storage',capture(['lsblk','-o','NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS']))
+            return box
+        if key=='Maintenance':
+            box=Gtk.Box(orientation=Gtk.Orientation.VERTICAL,spacing=8); l=Gtk.Label(); l.set_markup('<big><b>Maintenance</b></big>'); l.set_xalign(0); box.pack_start(l,False,False,0)
+            for text,cmd in [('Drop caches',['drop-caches']),('Vacuum journal',['journal-vacuum']),('Memory check (terminal)',None)]:
+                b=Gtk.Button(label=text)
+                if cmd: b.connect('clicked',lambda _,a=cmd: self.maint(*a))
+                else: b.connect('clicked',lambda *_: term('/usr/local/sbin/novaos-memcheck'))
+                box.pack_start(b,False,False,0)
+            return box
+        return Gtk.Label(label='NovaOS V20\nFresh Archiso source tree\nSource audit required before release.')
+
+    def wine_version(self):
+        if self._wine is None:
+            self._wine = capture(['wine','--version'],timeout=15) if shutil.which('wine') else 'unavailable'
+        return self._wine
+
+    def refresh_home(self, force=False):
+        if not force and self.stack.get_visible_child_name()!='Home':
+            return True
+        if hasattr(self,'home'):
+            try:
+                import psutil
+                vm=psutil.virtual_memory(); sm=psutil.swap_memory()
+                text=f'RAM: {vm.used/1024**3:.2f} GiB / {vm.total/1024**3:.2f} GiB\nAvailable: {vm.available/1024**3:.2f} GiB\nSwap: {sm.used/1024**3:.2f} GiB / {sm.total/1024**3:.2f} GiB\nCompositor: {"ON" if shutil.which("pgrep") and subprocess.run(["pgrep","-x","picom"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode==0 else "OFF"}\nWine: {self.wine_version() or "unavailable"}'
+            except Exception as e:
+                text=str(e)
+            self.home.set_text(text)
+        return True
+
+win=Center(); win.show_all(); Gtk.main()

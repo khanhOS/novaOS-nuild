@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Run Windows Program
+Exec=novaos-game-run %f
+Icon=applications-games
+Terminal=false
+NoDisplay=true
+MimeType=application/x-ms-dos-executable;application/vnd.microsoft.portable-executable;application/x-msdownload;application/x-msi;

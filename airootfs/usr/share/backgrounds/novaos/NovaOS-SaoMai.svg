@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+ <defs>
+  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+   <stop offset="0" stop-color="#061225"/>
+   <stop offset="0.55" stop-color="#0c2140"/>
+   <stop offset="1" stop-color="#02060d"/>
+  </linearGradient>
+  <radialGradient id="r" cx="70%" cy="25%" r="60%">
+   <stop offset="0" stop-color="#4bd7ff" stop-opacity="0.45"/>
+   <stop offset="1" stop-color="#4bd7ff" stop-opacity="0"/>
+  </radialGradient>
+ </defs>
+ <rect width="1920" height="1080" fill="url(#g)"/>
+ <rect width="1920" height="1080" fill="url(#r)"/>
+ <g fill="#ffffff" opacity="0.7">
+  <circle cx="160" cy="190" r="2"/><circle cx="390" cy="120" r="1.5"/><circle cx="730" cy="210" r="2"/><circle cx="1040" cy="100" r="1.5"/><circle cx="1350" cy="260" r="2"/><circle cx="1670" cy="130" r="1.5"/>
+  <circle cx="250" cy="580" r="1.5"/><circle cx="520" cy="760" r="2"/><circle cx="1100" cy="680" r="1.5"/><circle cx="1550" cy="760" r="2"/>
+ </g>
+ <path d="M0 860 Q520 650 990 840 T1920 730 L1920 1080 L0 1080 Z" fill="#020713" opacity="0.8"/>
+ <text x="100" y="930" fill="#dff8ff" font-family="sans-serif" font-size="68" font-weight="600" letter-spacing="6">NOVAOS</text>
+ <text x="106" y="985" fill="#7fb4cf" font-family="sans-serif" font-size="26" letter-spacing="4">SAO MAI • V20</text>
+</svg>

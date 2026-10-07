@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The critical path is intentionally boring: no animations, no compositor, no watcher.
+pkill -x picom >/dev/null 2>&1 || true
+
+if command -v xfconf-query >/dev/null 2>&1; then
+  xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s NovaOS-Dark 2>/dev/null || true
+  xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s Adwaita 2>/dev/null || true
+  xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false 2>/dev/null || true
+  xfconf-query -c xfwm4 -p /general/show_frame_shadow -n -t bool -s false 2>/dev/null || true
+  xfconf-query -c xfwm4 -p /general/show_dock_shadow -n -t bool -s false 2>/dev/null || true
+  xfconf-query -c xsettings -p /Gtk/EnableAnimations -n -t bool -s false 2>/dev/null || true
+fi
+
+mkdir -p "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0" "$HOME/.config/Thunar"
+cat > "$HOME/.config/gtk-3.0/settings.ini" <<'EOF'
+[Settings]
+gtk-enable-animations=false
+gtk-menu-popup-delay=0
+gtk-menu-popdown-delay=0
+gtk-menu-bar-popup-delay=0
+gtk-tooltip-timeout=0
+gtk-tooltip-browse-timeout=0
+EOF
+cat > "$HOME/.config/gtk-4.0/settings.ini" <<'EOF'
+[Settings]
+gtk-enable-animations=false
+gtk-tooltip-timeout=0
+gtk-tooltip-browse-timeout=0
+EOF
+
+# Thumbnails are a common HDD/CPU latency source. Files can still be opened normally.
+if command -v xfconf-query >/dev/null 2>&1; then
+  xfconf-query -c thunar -p /misc-thumbnail-mode -n -t uint -s 0 2>/dev/null || true
+fi
+
+# Disable notification fade paths through the compositor and keep notification lifetime finite.
+if command -v xfconf-query >/dev/null 2>&1; then
+  xfconf-query -c xfce4-notifyd -p /expire-timeout -n -t int -s 4 2>/dev/null || true
+  xfconf-query -c xfce4-notifyd -p /initial-opacity -n -t double -s 1.0 2>/dev/null || true
+fi
+
+export GTK_ENABLE_ANIMATIONS=0

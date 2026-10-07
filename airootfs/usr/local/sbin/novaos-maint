@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ACTION="${1:-status}"
+shift || true
+case "$ACTION" in
+  status)
+    systemctl is-enabled NetworkManager >/dev/null 2>&1 && echo 'NetworkManager: enabled' || echo 'NetworkManager: not enabled'
+    systemctl is-enabled earlyoom >/dev/null 2>&1 && echo 'earlyoom: enabled' || echo 'earlyoom: not enabled'
+    swapon --show
+    ;;
+  gaming)
+    case "${1:-status}" in
+      on) /usr/local/bin/novaos-gamemode on;;
+      off) /usr/local/bin/novaos-gamemode off;;
+      status) /usr/local/bin/novaos-gamemode status;;
+      *) echo 'Usage: novaos-maint gaming {on|off|status}' >&2; exit 2;;
+    esac
+    ;;
+  zram)
+    /usr/local/sbin/novaos-zram "${1:-status}"
+    ;;
+  earlyoom)
+    case "${1:-status}" in
+      on) systemctl enable --now earlyoom.service;;
+      off) systemctl disable --now earlyoom.service;;
+      status) systemctl is-active earlyoom.service || true;;
+      *) echo 'Usage: novaos-maint earlyoom {on|off|status}' >&2; exit 2;;
+    esac
+    ;;
+  profile)
+    case "${1:-balanced}" in
+      low) sysctl -w vm.swappiness=100 vm.vfs_cache_pressure=50 vm.dirty_background_ratio=2 vm.dirty_ratio=8 >/dev/null;;
+      balanced) sysctl -w vm.swappiness=60 vm.vfs_cache_pressure=75 vm.dirty_background_ratio=5 vm.dirty_ratio=10 >/dev/null;;
+      *) echo 'Usage: novaos-maint profile {low|balanced}' >&2; exit 2;;
+    esac
+    ;;
+  drop-caches)
+    sync
+    printf 1 > /proc/sys/vm/drop_caches
+    ;;
+  journal-vacuum)
+    journalctl --vacuum-size=32M
+    ;;
+  antivirus-update)
+    systemctl stop clamav-freshclam.service >/dev/null 2>&1 || true
+    freshclam --stdout
+    ;;
+  autologin)
+    mode="${1:-status}"
+    user="${2:-nova}"
+    case "$mode" in
+      status)
+        if [[ -f /etc/lightdm/lightdm.conf.d/50-novaos-autologin.conf ]]; then cat /etc/lightdm/lightdm.conf.d/50-novaos-autologin.conf; else echo 'Auto Login: OFF'; fi
+        ;;
+      on)
+        [[ "$user" =~ ^[a-z_][a-z0-9_.-]*$ ]] || { echo 'Invalid username.' >&2; exit 2; }
+        getent passwd "$user" >/dev/null 2>&1 || { echo 'User does not exist.' >&2; exit 2; }
+        shell="$(getent passwd "$user" | cut -d: -f7)"
+        [[ "$shell" != */nologin && "$shell" != */false ]] || { echo 'User is not a graphical login account.' >&2; exit 2; }
+        getent group autologin >/dev/null 2>&1 || groupadd -r autologin
+        gpasswd -a "$user" autologin >/dev/null
+        install -d -m 0755 /etc/lightdm/lightdm.conf.d
+        cat > /etc/lightdm/lightdm.conf.d/50-novaos-autologin.conf <<EOF
+[Seat:*]
+autologin-user=$user
+autologin-user-timeout=0
+EOF
+        sqlite3 /var/lib/novaos/accounts.db "UPDATE accounts SET autologin=0; UPDATE accounts SET autologin=1 WHERE username='$user';"
+        ;;
+      off)
+        rm -f /etc/lightdm/lightdm.conf.d/50-novaos-autologin.conf
+        sqlite3 /var/lib/novaos/accounts.db "UPDATE accounts SET autologin=0;"
+        ;;
+      *) echo 'Usage: novaos-maint autologin {on|off|status} [USER]' >&2; exit 2;;
+    esac
+    ;;
+  auto-boost)
+    case "${1:-status}" in
+      on) systemctl enable --now novaos-auto-boost.timer;;
+      off) systemctl disable --now novaos-auto-boost.timer;;
+      status) systemctl is-enabled novaos-auto-boost.timer || true;;
+      *) echo 'Usage: novaos-maint auto-boost {on|off|status}' >&2; exit 2;;
+    esac
+    ;;
+  *)
+    echo 'Unknown NovaOS maintenance action.' >&2
+    exit 2
+    ;;
+esac

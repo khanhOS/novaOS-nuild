@@ -1,0 +1,6 @@
+[Unit]
+Description=NovaOS memory pressure maintenance
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/novaos-auto-boost

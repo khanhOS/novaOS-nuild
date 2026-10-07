@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=NovaOS Dark
+Comment=Low-render dark theme for NovaOS
+
+[X-GNOME-Metatheme]
+GtkTheme=NovaOS-Dark
+IconTheme=Adwaita

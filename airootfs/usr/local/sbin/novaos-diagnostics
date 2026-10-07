@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'NovaOS diagnostics\n==================\n'
+printf '\nKernel:\n'; uname -a
+printf '\nCPU:\n'; (lscpu | grep -E 'Model name|Socket|Core|Thread|MHz' || true)
+printf '\nMemory:\n'; free -h
+printf '\nGraphics:\n'; (lspci | grep -Ei 'vga|3d|display' || true)
+printf '\nOpenGL:\n'; (glxinfo -B 2>/dev/null | grep -E 'OpenGL vendor|OpenGL renderer|OpenGL version' || echo 'glxinfo not installed')
+printf '\nVA-API:\n'; (vainfo 2>/dev/null | sed -n '1,20p' || echo 'vainfo not available')
+printf '\nWine:\n'; (wine --version 2>/dev/null || echo 'Wine unavailable')
+printf '\nGameMode:\n'; (gamemodelist 2>/dev/null || echo 'No active GameMode clients')
+printf '\nStorage:\n'; lsblk -o NAME,TYPE,SIZE,FSTYPE,MOUNTPOINTS -e7
+printf '\nZRAM/SWAP:\n'; swapon --show || true
+printf '\nDesktop compositor:\n'; pgrep -a picom || echo 'picom: off'

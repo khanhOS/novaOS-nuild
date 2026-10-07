@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+run_terminal() {
+  xfce4-terminal --title="NovaOS Game Hub" --command="bash -lc 'echo NovaOS Game Hub; echo; read -r -p \"Press Enter to close...\"'" 2>/dev/null || true
+}
+
+if ! command -v zenity >/dev/null 2>&1 || [[ -z "${DISPLAY:-}" ]]; then
+  run_terminal
+  exit 0
+fi
+
+while true; do
+  CHOICE="$(zenity --list --title='NovaOS Game Hub' --text='Windows Game Tools' --column='Action' --height=360 --width=520 \
+    'Run Windows EXE/MSI' 'Wine Configuration' 'Winetricks' 'Open Wine Prefixes' 'Diagnostics' 'Close' 2>/dev/null || true)"
+  case "$CHOICE" in
+    'Run Windows EXE/MSI')
+      FILE="$(zenity --file-selection --title='Select Windows program' --file-filter='Windows programs | *.exe *.EXE *.msi *.MSI' 2>/dev/null || true)"
+      [[ -z "$FILE" ]] || novaos-game-run "$FILE" || true ;;
+    'Wine Configuration') winecfg || true ;;
+    'Winetricks') winetricks --gui || true ;;
+    'Open Wine Prefixes') mkdir -p "$HOME/.local/share/novaos/wine-prefixes"; thunar "$HOME/.local/share/novaos/wine-prefixes" ;;
+    'Diagnostics') /usr/local/sbin/novaos-diagnostics 2>&1 | zenity --text-info --title='NovaOS Game Diagnostics' --width=760 --height=520 || true ;;
+    'Close'|'') exit 0 ;;
+  esac
+done

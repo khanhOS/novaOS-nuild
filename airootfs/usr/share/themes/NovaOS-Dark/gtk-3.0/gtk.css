@@ -1,0 +1,8 @@
+@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");
+@define-color theme_bg_color #08111f;
+@define-color theme_fg_color #e7f0ff;
+@define-color theme_base_color #0b1422;
+@define-color theme_text_color #e7f0ff;
+@define-color selected_bg_color #214b72;
+@define-color selected_fg_color #ffffff;
+* { -GtkWidget-focus-padding: 1; -GtkWidget-focus-line-width: 1; }

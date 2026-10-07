@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<actions>
+  <action>
+    <icon>utilities-terminal</icon>
+    <name>Open Terminal Here</name>
+    <unique-id>novaos-open-terminal</unique-id>
+    <command>xfce4-terminal --working-directory=%f</command>
+    <description>Open a terminal in the selected folder</description>
+    <patterns>*</patterns>
+    <startup-notify>true</startup-notify>
+    <directories/>
+  </action>
+</actions>

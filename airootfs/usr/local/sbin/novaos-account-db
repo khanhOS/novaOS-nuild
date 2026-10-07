@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DB=/var/lib/novaos/accounts.db
+install -d -o root -g root -m 0755 "$(dirname "$DB")"
+sqlite3 "$DB" <<'SQL'
+PRAGMA journal_mode=DELETE;
+CREATE TABLE IF NOT EXISTS accounts (
+  username TEXT PRIMARY KEY,
+  uid INTEGER NOT NULL,
+  home TEXT NOT NULL,
+  shell TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  autologin INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+SQL
+while IFS=: read -r user _ uid gid gecos home shell; do
+  [[ "$uid" -ge 1000 && "$uid" -lt 60000 ]] || continue
+  [[ "$shell" != */nologin && "$shell" != */false ]] || continue
+  sqlite3 "$DB" <<SQL
+INSERT INTO accounts(username,uid,home,shell,created_at,autologin)
+VALUES($(printf '%s' "$user" | sed "s/'/''/g" | sed "s/^/'/;s/$/'/"),$uid,$(printf '%s' "$home" | sed "s/'/''/g" | sed "s/^/'/;s/$/'/"),$(printf '%s' "$shell" | sed "s/'/''/g" | sed "s/^/'/;s/$/'/"),datetime('now'),0)
+ON CONFLICT(username) DO UPDATE SET uid=excluded.uid,home=excluded.home,shell=excluded.shell;
+SQL
+done < /etc/passwd
+sqlite3 "$DB" "INSERT INTO settings(key,value) VALUES('schema_version','1') ON CONFLICT(key) DO UPDATE SET value='1';"
+chown root:root "$DB"
+chmod 0644 "$DB"

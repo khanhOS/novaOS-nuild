@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+PICOM_PID_FILE="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/novaos-picom.pid"
+case "${1:-status}" in
+  on)
+    pkill -x picom >/dev/null 2>&1 || true
+    if command -v xfconf-query >/dev/null 2>&1; then
+      xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false 2>/dev/null || true
+    fi
+    picom --config /etc/picom.conf --daemon
+    pgrep -x picom | head -n1 > "$PICOM_PID_FILE" || true
+    echo 'Liquid Glass manual mode: ON (light xrender only).'
+    ;;
+  off)
+    pkill -x picom >/dev/null 2>&1 || true
+    rm -f "$PICOM_PID_FILE"
+    echo 'Liquid Glass: OFF.'
+    ;;
+  status)
+    if pgrep -x picom >/dev/null 2>&1; then echo 'Liquid Glass: ON'; else echo 'Liquid Glass: OFF'; fi
+    ;;
+  *) echo 'Usage: novaos-glass {on|off|status}' >&2; exit 2;;
+esac

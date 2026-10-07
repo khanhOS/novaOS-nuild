@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-status}" in
+  on)
+    pkill -x picom >/dev/null 2>&1 || true
+    if command -v xfconf-query >/dev/null 2>&1; then
+      xfconf-query -c xfwm4 -p /general/use_compositing -n -t bool -s false 2>/dev/null || true
+    fi
+    echo 'NovaOS Gaming Mode: desktop effects OFF. Game process should be started through gamemoderun.'
+    ;;
+  off)
+    pkill -x picom >/dev/null 2>&1 || true
+    echo 'NovaOS Gaming Mode: OFF. Desktop remains zero-effects by default.'
+    ;;
+  status)
+    printf 'compositor='; pgrep -x picom >/dev/null 2>&1 && echo on || echo off
+    if command -v gamemodelist >/dev/null 2>&1; then gamemodelist || true; fi
+    ;;
+  *) echo 'Usage: novaos-gamemode {on|off|status}' >&2; exit 2;;
+esac

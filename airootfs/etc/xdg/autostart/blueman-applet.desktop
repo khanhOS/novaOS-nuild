@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Bluetooth Applet
+Exec=blueman-applet
+OnlyShowIn=XFCE;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,11 @@
+[Unit]
+Description=NovaOS periodic low-memory check
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=90s
+RandomizedDelaySec=10s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

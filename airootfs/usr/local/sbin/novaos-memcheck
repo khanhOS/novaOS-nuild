@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf '=== NovaOS memory check ===\n'
+free -h
+printf '\n/proc/meminfo summary:\n'
+grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree|Cached|Buffers|SReclaimable):' /proc/meminfo
+printf '\nTop RSS processes:\n'
+ps -eo pid,comm,rss,%mem --sort=-rss | head -n 12

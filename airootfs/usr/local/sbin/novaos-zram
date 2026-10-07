@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+case "${1:-status}" in
+  on)
+    systemctl restart systemd-zram-setup@zram0.service 2>/dev/null || systemctl restart systemd-zram-setup@.service 2>/dev/null || true
+    echo 'zram requested ON.'
+    swapon --show
+    ;;
+  off)
+    swapoff /dev/zram0 2>/dev/null || true
+    echo 'zram swap OFF.'
+    ;;
+  status)
+    swapon --show
+    ;;
+  *) echo 'Usage: novaos-zram {on|off|status}' >&2; exit 2;;
+esac

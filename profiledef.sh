@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2034
+iso_name="novaos"
+iso_label="NOVAOS_$(date +%Y%m)"
+iso_publisher="NovaOS Project"
+iso_application="NovaOS V20 Sao Mai"
+iso_version="20.0"
+install_dir="arch"
+buildmodes=('iso')
+bootmodes=('bios.syslinux' 'uefi.systemd-boot')
+arch="x86_64"
+pacman_conf="pacman.conf"
+airootfs_image_type="squashfs"
+airootfs_image_tool_options=('-comp' 'xz' '-Xbcj' 'x86' '-b' '1M' '-Xdict-size' '1M')
+# '+=' so that build.sh can seed the list with the permissions inherited from archiso's releng profile.
+file_permissions+=(
+  ["/etc/shadow"]="0:0:400"
+  ["/root/customize_airootfs.sh"]="0:0:755"
+  ["/usr/local/bin/novaos-center"]="0:0:755"
+  ["/usr/local/bin/novaos-game-run"]="0:0:755"
+  ["/usr/local/bin/novaos-gamehub"]="0:0:755"
+  ["/usr/local/bin/novaos-gamemode"]="0:0:755"
+  ["/usr/local/bin/novaos-glass"]="0:0:755"
+  ["/usr/local/bin/novaos-session-setup"]="0:0:755"
+  ["/usr/local/sbin/novaos-maint"]="0:0:755"
+  ["/usr/local/sbin/novaos-account-db"]="0:0:755"
+  ["/usr/local/sbin/novaos-antivirus"]="0:0:755"
+  ["/usr/local/sbin/novaos-diagnostics"]="0:0:755"
+  ["/usr/local/sbin/novaos-memcheck"]="0:0:755"
+  ["/usr/local/sbin/novaos-zram"]="0:0:755"
+  ["/usr/local/sbin/novaos-user-setup"]="0:0:755"
+  ["/usr/local/sbin/novaos-auto-boost"]="0:0:755"
+  ["/etc/sudoers.d/20-novaos-helper"]="0:0:440"
+)

@@ -1,0 +1,5 @@
+[Default Applications]
+application/x-ms-dos-executable=novaos-game-run.desktop
+application/vnd.microsoft.portable-executable=novaos-game-run.desktop
+application/x-msdownload=novaos-game-run.desktop
+application/x-msi=novaos-game-run.desktop

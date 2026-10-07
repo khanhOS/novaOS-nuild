@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo 'Usage: novaos-game-run [--prefix DIR] FILE.exe|FILE.msi [-- ARGS...]'
+}
+
+PREFIX=""
+FILE=""
+EXTRA=()
+while (($#)); do
+  case "$1" in
+    --prefix) [[ $# -ge 2 ]] || { usage; exit 2; }; PREFIX="$2"; shift 2;;
+    --) shift; EXTRA=("$@"); break;;
+    -h|--help) usage; exit 0;;
+    *) FILE="$1"; shift; EXTRA=("$@"); break;;
+  esac
+done
+
+: "${FILE:?No Windows executable/installer supplied.}"
+[[ -f "$FILE" ]] || { echo "File not found: $FILE" >&2; exit 2; }
+command -v wine >/dev/null 2>&1 || { echo 'Wine is not installed.' >&2; exit 3; }
+
+real_file="$(readlink -f -- "$FILE")"
+base="$(basename -- "$real_file")"
+safe="$(printf '%s' "$real_file" | sha256sum | cut -c1-16)"
+[[ -n "$PREFIX" ]] || PREFIX="$HOME/.local/share/novaos/wine-prefixes/$safe"
+mkdir -p "$PREFIX"
+if [[ ! -e "$PREFIX/drive_c" ]]; then
+  free_kb="$(df -Pk -- "$PREFIX" | awk 'NR==2 {print $4}')"
+  if [[ "${free_kb:-0}" -lt 1048576 ]]; then
+    echo "Not enough free space for a new Wine prefix at $PREFIX (need about 1 GiB, have $((${free_kb:-0} / 1024)) MiB)." >&2
+    echo "The live session keeps changes in RAM. Mount a disk and rerun with: novaos-game-run --prefix /mnt/DISK/wine-prefix FILE" >&2
+    exit 4
+  fi
+fi
+
+export WINEPREFIX="$PREFIX"
+export WINEARCH=win64
+export WINEDEBUG=-all
+export WINEDLLOVERRIDES=""
+export DXVK_LOG_LEVEL=none
+export MANGOHUD=0
+
+mkdir -p "$HOME/.local/share/novaos/wine-prefixes"
+
+echo "NovaOS Game Runner"
+echo "  Program: $base"
+echo "  Prefix:  $PREFIX"
+echo "  Graphics baseline: WineD3D"
+
+if [[ ! -e "$PREFIX/drive_c" ]]; then
+  wineboot -u >/dev/null 2>&1 || true
+fi
+
+/usr/local/bin/novaos-gamemode on
+trap '/usr/local/bin/novaos-gamemode off >/dev/null 2>&1 || true' EXIT
+
+CMD=(wine)
+case "${real_file,,}" in
+  *.msi) CMD+=(msiexec /i "$real_file");;
+  *.exe) CMD+=("$real_file");;
+  *) echo 'Only .exe and .msi are supported.' >&2; exit 2;;
+esac
+if ((${#EXTRA[@]})); then CMD+=("${EXTRA[@]}"); fi
+
+if command -v gamemoderun >/dev/null 2>&1; then
+  gamemoderun "${CMD[@]}"
+else
+  "${CMD[@]}"
+fi

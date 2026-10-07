@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=NovaOS Game Hub
+GenericName=Windows Games
+Comment=Run Windows .exe and .msi programs with Wine
+Exec=novaos-gamehub
+Icon=applications-games
+Terminal=false
+Categories=Game;Utility;
+MimeType=application/x-ms-dos-executable;application/x-msi;
+StartupNotify=false
