@@ -13,9 +13,7 @@ jobs:
       options: --privileged
 
     steps:
-      # Bước 1: Fix quyền các thư mục temp mà actions/checkout cần ghi vào.
-      # Nguyên nhân lỗi "Access to path '/home/runner/work/_temp/...' is denied"
-      # là do UID giữa runner host và container Arch không khớp.
+      # Fix quyền các thư mục temp cho actions/checkout
       - name: Fix workspace permissions
         run: |
           mkdir -p /__w
@@ -26,8 +24,6 @@ jobs:
           chmod -R 777 /home/runner/work || true
           chmod -R 777 /github || true
 
-      # Bước 2: Dùng checkout@v3.0.2 thay vì v4.
-      # v3.0.2 dùng Node 16, không bị force lên Node 24 và không tạo file temp theo cách gây lỗi.
       - name: Checkout source
         uses: actions/checkout@v3.0.2
 
@@ -68,10 +64,23 @@ jobs:
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           chown -R builder:builder /__w || true
 
+      - name: Inspect build directory
+        run: |
+          BUILD_DIR=/__w/novaOS-nuild/novaOS-nuild
+          echo "=== pwd ==="
+          pwd
+          echo "=== contents of $BUILD_DIR ==="
+          ls -la "$BUILD_DIR" || echo "DIRECTORY NOT FOUND"
+          echo "=== build.sh stat ==="
+          stat "$BUILD_DIR/build.sh" || echo "build.sh NOT FOUND"
+
       - name: Run build.sh
         run: |
-          cd /__w/novaOS-nuild/novaOS-nuild
-          sudo -u builder ./build.sh
+          set -x
+          BUILD_DIR=/__w/novaOS-nuild/novaOS-nuild
+          chmod +x "$BUILD_DIR/build.sh"
+          cd "$BUILD_DIR"
+          sudo -u builder bash "$BUILD_DIR/build.sh"
         timeout-minutes: 55
 
       - name: Locate ISO
