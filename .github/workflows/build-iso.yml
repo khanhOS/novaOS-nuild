@@ -1,0 +1,91 @@
+name: Build NovaOS V20 ISO
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            archiso \
+            rsync \
+            sudo \
+            base-devel \
+            git \
+            wget \
+            curl \
+            squashfs-tools \
+            libisoburn \
+            mtools \
+            dosfstools \
+            e2fsprogs \
+            erofs-utils \
+            jq \
+            zstd \
+            which
+
+      - name: Verify environment
+        run: |
+          echo "=== check commands ==="
+          command -v mkarchiso || { echo "MISSING mkarchiso"; exit 1; }
+          command -v rsync     || { echo "MISSING rsync";     exit 1; }
+          command -v sudo      || { echo "MISSING sudo";      exit 1; }
+          command -v pacman    || { echo "MISSING pacman";    exit 1; }
+          echo "=== check releng ==="
+          ls -la /usr/share/archiso/configs/releng/
+
+      - name: Create builder user
+        run: |
+          useradd -m -G wheel builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R builder:builder /__w
+
+      - name: Run build.sh
+        run: |
+          cd /__w/novaOS-nuild/novaOS-nuild
+          sudo -u builder ./build.sh
+        timeout-minutes: 55
+
+      - name: Locate ISO
+        id: find_iso
+        if: success()
+        run: |
+          ISO=$(find /__w/novaOS-nuild/novaOS-nuild/out -maxdepth 1 -type f -name '*.iso' -print -quit)
+          if [ -z "$ISO" ]; then
+            echo "No ISO found"; exit 1
+          fi
+          echo "ISO_PATH=$ISO" >> $GITHUB_OUTPUT
+          echo "ISO_NAME=$(basename $ISO)" >> $GITHUB_OUTPUT
+          ls -lh "$ISO"
+
+      - name: Upload ISO artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: novaos-v20-iso
+          path: |
+            /__w/novaOS-nuild/novaOS-nuild/out/*.iso
+            /__w/novaOS-nuild/novaOS-nuild/out/*.sha256
+          retention-days: 30
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: /__w/novaOS-nuild/novaOS-nuild/work/
+          retention-days: 7
+          if-no-files-found: ignore
