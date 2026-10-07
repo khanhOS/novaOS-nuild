@@ -13,7 +13,6 @@ jobs:
       options: --privileged
 
     steps:
-      # Fix quyền các thư mục temp cho actions/checkout
       - name: Fix workspace permissions
         run: |
           mkdir -p /__w
@@ -50,12 +49,10 @@ jobs:
 
       - name: Verify environment
         run: |
-          echo "=== check commands ==="
           command -v mkarchiso || { echo "MISSING mkarchiso"; exit 1; }
           command -v rsync     || { echo "MISSING rsync";     exit 1; }
           command -v sudo      || { echo "MISSING sudo";      exit 1; }
           command -v pacman    || { echo "MISSING pacman";    exit 1; }
-          echo "=== check releng ==="
           ls -la /usr/share/archiso/configs/releng/
 
       - name: Create builder user
@@ -64,15 +61,51 @@ jobs:
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
           chown -R builder:builder /__w || true
 
-      - name: Inspect build directory
+      # Fix pacstrap file conflicts: NovaOS ships 4 files under airootfs/
+      # that Arch packages also provide. Move them to a staging dir inside
+      # airootfs/root/, then customize_airootfs.sh (which runs AFTER pacstrap)
+      # copies them to their real location. Source on GitHub is unchanged.
+      - name: Stage conflicting airootfs files
         run: |
-          BUILD_DIR=/__w/novaOS-nuild/novaOS-nuild
-          echo "=== pwd ==="
-          pwd
-          echo "=== contents of $BUILD_DIR ==="
-          ls -la "$BUILD_DIR" || echo "DIRECTORY NOT FOUND"
-          echo "=== build.sh stat ==="
-          stat "$BUILD_DIR/build.sh" || echo "build.sh NOT FOUND"
+          set -x
+          cd /__w/novaOS-nuild/novaOS-nuild
+          STAGE=airootfs/root/novaos-xdg-stage
+          mkdir -p "$STAGE"
+
+          for rel in \
+            "etc/xdg/autostart/nm-applet.desktop" \
+            "etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-keyboard-shortcuts.xml" \
+            "etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml" \
+            "etc/xdg/Thunar/uca.xml"; do
+            if [ -f "airootfs/$rel" ]; then
+              mkdir -p "$STAGE/$(dirname "$rel")"
+              mv "airootfs/$rel" "$STAGE/$rel"
+              echo "Staged: $rel"
+            fi
+          done
+
+          # Append restore hook to customize_airootfs.sh
+          # This script runs inside the chroot AFTER pacstrap completes.
+          cat >> airootfs/root/customize_airootfs.sh <<'RESTORE_EOF'
+
+          # --- NovaOS build helper: restore xdg files staged before pacstrap ---
+          if [ -d /root/novaos-xdg-stage ]; then
+            cd /root/novaos-xdg-stage
+            find . -type f -print0 | while IFS= read -r -d '' f; do
+              mkdir -p "/$(dirname "$f")"
+              cp -a "$f" "/$f"
+            done
+            cd /
+            rm -rf /root/novaos-xdg-stage
+          fi
+          RESTORE_EOF
+
+          echo "=== staged files ==="
+          find "$STAGE" -type f
+          echo "=== tail of customize_airootfs.sh ==="
+          tail -20 airootfs/root/customize_airootfs.sh
+
+          chown -R builder:builder /__w || true
 
       - name: Run build.sh
         run: |
